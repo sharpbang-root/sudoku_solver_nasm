@@ -1,7 +1,7 @@
 ; COMMANDS TO COMPILE, LINK AND RUN:
 ;     nasm -o sudoku_solver.o -f elf64 sudoku_solver.nasm
 ;     gcc sudoku_solver.o -o sudoku_solver -nostdlib
-;     ./sudoku_solver <input board>
+;     echo <input_board> | ./sudoku_solver
 
 global _start
 
@@ -240,3 +240,70 @@ section .text
     xor rax, rax
     ret
     ; end function to check if value exists in other cells in the same row
+
+    ; function to check if value exists in other cells in the same column
+    ;     rax = boardChars;
+    ;     rdi = cellIndex;
+    ;     rsi = cellValue;
+    ; return rax = 0 if duplicate value found, or rax = 1 otherwise
+    func_check_value_column:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    ; get starting index of column and store in rbx
+    push rdx
+    push rax
+    push rcx
+    xor rdx, rdx
+    mov rax, rdi
+    mov rcx, boardDimension
+    div rcx
+    mul rcx
+    mov rbx, rdi
+    sub rbx, rax
+    pop rcx
+    pop rax
+    pop rdx
+    ; end get starting index of column and store in rbx
+    ; loop to check each cell in same column
+    push rcx
+    ; get ending index of column and store in rcx
+    push rax
+    push rbx
+    push rdx
+    mov rax, boardDimension
+    dec rax
+    mov rbx, boardDimension
+    mul rbx
+    pop rdx
+    pop rbx
+    mov rcx, rbx
+    add rcx, rax
+    pop rax
+    ; end get ending index of column and store in rcx
+    loop_check_value_column:
+    ; check value only if cell is not cell whose value we are checking
+    cmp rdi, rcx
+    je skip_check_value_column
+    push rcx
+    add rcx, rax
+    cmp sil, [rcx]
+    pop rcx
+    je column_duplicate_value_found ; if duplicate value, return 0
+    skip_check_value_column:
+    ; end check value only if cell is not cell whose value we are checking
+    sub rcx, boardDimension
+    cmp rcx, rbx
+    jge loop_check_value_column
+    pop rcx
+    ; end loop to check each cell in same column
+    pop rbx
+    pop rbp
+    mov rax, 1 ; no duplicate value found, return 1
+    ret
+    column_duplicate_value_found:
+    pop rcx
+    pop rbx
+    pop rbp
+    xor rax, rax
+    ret
