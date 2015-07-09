@@ -237,7 +237,7 @@ section .text
     pop rcx
     pop rbx
     pop rbp
-    xor rax, rax
+    xor rax, rax ; duplicate value found, return 0
     ret
     ; end function to check if value exists in other cells in the same row
 
@@ -305,5 +305,105 @@ section .text
     pop rcx
     pop rbx
     pop rbp
-    xor rax, rax
+    xor rax, rax ; duplicate value found, return 0
     ret
+    ; end function to check if value exists in other cells in the same column
+
+    ; function to check if value exists in other cells in the same miniboard
+    ;     rax = boardChars;
+    ;     rdi = cellIndex;
+    ;     rsi = cellValue;
+    ; return rax = 0 if duplicate value found, or rax = 1 otherwise
+    func_check_value_miniboard:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    ; get index of top-left cell of miniboard containing cell and store in rbx
+    ; get index of top-left cell of left-most miniboard in the row of miniboards containing cell and store in rbx
+    push rax
+    push rcx
+    mov rax, boardDimension
+    mov rbx, miniBoardDimension
+    mul rbx
+    mov rbx, 0
+    mov rcx, 0
+    get_topleft_cell_of_next_miniboard_row:
+    add rcx, rax
+    cmp rdi, rcx
+    jl found_topleft_cell_of_miniboard_row
+    mov rbx, rcx
+    jmp get_topleft_cell_of_next_miniboard_row
+    found_topleft_cell_of_miniboard_row:
+    pop rcx
+    pop rax
+    ; end get index of top-left cell of left-most miniboard in the row of miniboards containing cell and store in rbx
+    push rdx
+    ; get index of top-left cell of top-most miniboard in the column of miniboards containing cell and store in rdx
+    push rax
+    push rbx
+    push rcx
+    mov rax, rdi
+    mov rbx, boardDimension
+    div rbx
+    mov rax, rdx
+    mov rdx, 0
+    mov rcx, 0
+    get_topleft_cell_of_next_miniboard_column:
+    add rcx, miniBoardDimension
+    cmp rax, rcx
+    jl found_topleft_cell_of_miniboard_column
+    mov rdx, rcx
+    jmp get_topleft_cell_of_next_miniboard_column
+    found_topleft_cell_of_miniboard_column:
+    pop rcx
+    pop rbx
+    pop rax
+    ; end get index of top-left cell of top-most miniboard in the column of miniboards containing cell and store in rdx
+    add rbx, rdx
+    pop rdx
+    ; end get index of top-left cell of miniboard containing cell and store in rbx
+    ; loop to check each cell in same miniboard
+    push rcx
+    mov rcx, miniBoardDimension
+    loop_check_value_miniboard_each_row:
+    ; loop to check each cell in miniboard row
+    push rbx
+    push rcx
+    mov rcx, miniBoardDimension
+    loop_check_value_miniboard_each_cell:
+    ; check value only if cell is not cell whose value we are checking
+    cmp rbx, rdi
+    je skip_check_value_miniboard
+    push rbx
+    add rbx, rax
+    cmp sil, [rbx]
+    pop rbx
+    je miniboard_duplicate_value_found ; if duplicate value, return 0
+    skip_check_value_miniboard:
+    ; end check value only if cell is not cell whose value we are checking
+    inc rbx
+    dec rcx
+    test rcx, rcx
+    jne loop_check_value_miniboard_each_cell
+    pop rcx
+    pop rbx
+    ; end loop to check each cell in miniboard row
+    add rbx, boardDimension
+    dec rcx
+    test rcx, rcx
+    jne loop_check_value_miniboard_each_row
+    pop rcx
+    ; end loop to check each cell in same miniboard
+    pop rbx
+    pop rbp
+    mov rax, 1 ; no duplicate value found, return 1
+    ret
+    miniboard_duplicate_value_found:
+    pop rcx
+    pop rbx
+    pop rcx
+    pop rbx
+    pop rbp
+    xor rax, rax ; duplicate value found, return 0
+    ret
+    ; end function to check if value exists in other cells in the same miniboard
