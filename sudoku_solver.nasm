@@ -8,6 +8,7 @@ global _start
 miniBoardDimension equ 3
 boardDimension equ miniBoardDimension * miniBoardDimension
 boardSize equ boardDimension * boardDimension
+asciiZero equ 48
 
 section .data
     inputBoardStr db 'INPUT BOARD:', 0x0A
@@ -183,6 +184,79 @@ section .text
     pop rbp
     ret
     ; end function to print board formatted
+
+    ; function to get next valid value of given cell
+    ;     rax = boardChars;
+    ;     rdi = cellIndex;
+    ;     rsi = currentCellValue;
+    ; return rax = next valid cell value, or rax = 0 if no other valid cell value
+    func_get_next_valid_value:
+    push rbp
+    mov rbp, rsp
+    push rcx
+    push rdx
+    mov rcx, boardDimension
+    push rsi
+    ; loop to find next valid value
+    loop_get_next_valid_value:
+    inc rsi
+    mov rdx, rsi
+    sub rdx, asciiZero
+    cmp rdx, rcx
+    jg no_valid_value ; if no more values to test, return 0
+    push rax
+    call func_check_cell_value
+    test rax, rax
+    pop rax
+    je loop_get_next_valid_value ; if value is not valid, test next value
+    mov rax, rsi ; return next valid value found
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbp
+    ret
+    ; end loop to find next valid value
+    no_valid_value:
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbp
+    xor rax, rax ; no valid value found; return 0
+    ret
+    ; end function to get next valid value of given cell
+
+    ; function to check if value in given cell is valid (by checking for duplicates)
+    ;     rax = boardChars;
+    ;     rdi = cellIndex;
+    ;     rsi = cellValue;
+    ; return rax = 1 if value is valid, or rax = 0 otherwise
+    func_check_cell_value:
+    push rbp
+    mov rbp, rsp
+    push rax
+    call func_check_value_row
+    test rax, rax
+    je value_not_valid ; if value is not valid, return 0
+    pop rax
+    push rax
+    call func_check_value_column
+    test rax, rax
+    je value_not_valid ; if value is not valid, return 0
+    pop rax
+    push rax
+    call func_check_value_miniboard
+    test rax, rax
+    je value_not_valid ; if value is not valid, return 0
+    pop rax
+    pop rbp
+    mov rax, 1 ; value valid, return 1
+    ret
+    value_not_valid:
+    pop rax
+    pop rbp
+    xor rax, rax ; value not valid, return 0
+    ret
+    ; end function to check if value in given cell is valid (by checking for duplicates)
 
     ; function to check if value exists in other cells in the same row
     ;     rax = boardChars;
