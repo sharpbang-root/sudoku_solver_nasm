@@ -2,6 +2,35 @@
 ;     nasm -o sudoku_solver.o -f elf64 sudoku_solver.nasm
 ;     gcc sudoku_solver.o -o sudoku_solver -nostdlib
 ;     echo <input_board> | ./sudoku_solver
+;
+;     E.g.
+;     echo '005003040007009120020000000050816003400307006100492050000000030034500800080200900' | ./sudoku_solver
+;
+;     INPUT BOARD:
+;     005|003|040
+;     007|009|120
+;     020|000|000
+;     ---+---+---
+;     050|816|003
+;     400|307|006
+;     100|492|050
+;     ---+---+---
+;     000|000|030
+;     034|500|800
+;     080|200|900
+;     
+;     SOLUTION:
+;     815|723|649
+;     347|689|125
+;     629|145|387
+;     ---+---+---
+;     752|816|493
+;     498|357|216
+;     163|492|758
+;     ---+---+---
+;     271|968|534
+;     934|571|862
+;     586|234|971
 
 global _start
 
@@ -14,6 +43,9 @@ section .data
     inputBoardStr db 'INPUT BOARD:', 0x0A
     verticalSeparator db '|'
     horizontalSeparators db '---+---+---', 0x0A
+    errorInputStr db 'INPUT BOARD IS INVALID', 0x0A
+    noSolutionStr db 'NO POSSIBLE SOLUTION', 0x0A
+    solutionStr db 'SOLUTION:', 0x0A
     lineBreak db 0x0A
 
 section .bss
@@ -27,10 +59,10 @@ section .text
     push rdi
     push rdx
     ; read input board as chars
-    xor rax, rax                    ; sys_read
-    xor rdi, rdi                    ; STDIN
-    mov rsi, inputBoardChars        ; read buffer
-    mov rdx, boardSize              ; size bytes
+    xor rax, rax ; sys_read
+    xor rdi, rdi ; STDIN
+    mov rsi, inputBoardChars ; read buffer
+    mov rdx, boardSize ; size bytes
     push rcx
     syscall
     pop rcx
@@ -38,6 +70,7 @@ section .text
     pop rsi
     pop rdi
     pop rax
+    ; end read input board as chars
     ; print input board label
     push rax
     push rdi
@@ -54,15 +87,187 @@ section .text
     pop rsi
     pop rdi
     pop rax
+    ; end print input board label
     ; print input board
     push rax
     mov rax, inputBoardChars
     call func_print_board
     pop rax
-
+    ; end print input board
+    ; copy inputBoardChars to workingBoardChars
+    push rcx
+    push rbx
+    push rdi
+    push rdx
+    mov rcx, boardSize
+    loop_copy_input_to_working:
+    dec rcx
+    mov rbx, inputBoardChars
+    add rbx, rcx
+    xor rdi, rdi
+    mov dil, [rbx]
+    mov rdx, workingBoardChars
+    add rdx, rcx
+    mov [rdx], dil
+    test rcx, rcx
+    jne loop_copy_input_to_working
+    pop rdx
+    pop rdi
+    pop rbx
+    pop rcx
+    ; end copy inputBoardChars to workingBoardChars
+    ; naive search and backtrack
+    push rbx
+    push rax
+    push rdi
+    mov rbx, inputBoardChars
+    mov rax, workingBoardChars
+    xor rdi, rdi
+    loop_solver:
+    ; check if cell has starting value
+    push rbx
+    add rbx, rdi
+    xor rsi, rsi
+    mov sil, [rbx]
+    pop rbx
+    cmp rsi, asciiZero
+    je solve_for_cell ; if cell does not have starting value, proceed to solve for cell
+    ; end check if cell has starting value
+    ; check if starting value for cell is valid
+    push rax
+    mov rax, inputBoardChars
+    call func_check_cell_value
+    test rax, rax
+    pop rax
+    je invalid_input ; if starting value for cell is not valid, print error and exit
+    ; end check if starting value for cell is valid
+    ; go to next cell
+    inc rdi
+    cmp rdi, boardSize
+    je solved ; if already at last cell, print solution and exit
+    jmp loop_solver ; solve for next cell
+    solve_for_cell:
+    ; find and set valid value for current cell
+    push rax
+    add rax, rdi
+    xor rsi, rsi
+    mov sil, [rax]
+    pop rax
+    push rcx
+    push rax
+    call func_get_next_valid_value
+    mov rcx, rax
+    test rax, rax
+    pop rax
+    je no_valid_value_for_cell ; if no valid value found for cell, set to ascii 0 and backtrack
+    ; set cell value and go to next cell
+    push rax
+    add rax, rdi
+    mov [rax], cl
+    pop rax
+    pop rcx
+    inc rdi
+    ; end set cell value and go to next cell
+    ; end find and set valid value for current cell
+    cmp rdi, boardSize
+    je solved ; if already at last cell, print solution and exit
+    jmp loop_solver ; solve for next cell
+    no_valid_value_for_cell:
+    pop rcx
+    ; set current cell to ascii 0
+    push rax
+    push rdx
+    add rax, rdi
+    mov rdx, asciiZero
+    mov [rax], dl
+    ; end set current cell to ascii 0
+    pop rdx
+    pop rax
+    test rdi, rdi
+    je no_solution ; if already at first cell, print error and exit
+    ; backtrack to previous cell that has no starting value
+    loop_backtrack_to_empty_cell:
+    dec rdi
+    ; check if cell has starting value
+    push rbx
+    add rbx, rdi
+    xor rsi, rsi
+    mov sil, [rbx]
+    pop rbx
+    cmp rsi, asciiZero
+    je loop_solver ; if cell does not have starting value, proceed to solve for cell
+    ; end check if cell has starting value
+    test rdi, rdi
+    je no_solution ; else if already at first cell, print error and exit
+    jmp loop_backtrack_to_empty_cell ; backtrack further
+    ; end backtrack to previous cell that has no starting value
+    invalid_input:
+    ; print invalid input error message
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    mov rax, 0x01
+    mov rdi, 0x01
+    mov rsi, errorInputStr
+    mov rdx, 0x17
+    push rcx
+    syscall
+    pop rcx
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ; end print invalid input error message
+    jmp end
+    no_solution:
+    ; print no solution error message
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    mov rax, 0x01
+    mov rdi, 0x01
+    mov rsi, noSolutionStr
+    mov rdx, 0x15
+    push rcx
+    syscall
+    pop rcx
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ; end print no solution error message
+    jmp end
+    solved:
+    ; print solution label
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    mov rax, 0x01
+    mov rdi, 0x01
+    mov rsi, solutionStr
+    mov rdx, 0x0A
+    push rcx
+    syscall
+    pop rcx
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ; end print solution label
+    ; print solution
+    call func_print_board
+    ; end print solution
+    end:
+    pop rdi
+    pop rax
+    pop rbx
+    ; end naive search and backtrack
     ; exit
-    mov rax, 0x3C                   ; sys_exit
-    xor rdi, rdi                    ; error code
+    mov rax, 0x3C ; sys_exit
+    xor rdi, rdi ; error code 0
     syscall
 
     ; function to print board formatted
@@ -180,6 +385,23 @@ section .text
     jne loop_print_board_x_board_start
     pop rcx
     ; end loop to print boardDimension x boardDimension cells
+    ; print line break
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    mov rax, 0x01
+    mov rdi, 0x01
+    mov rsi, lineBreak
+    mov rdx, 0x01
+    push rcx
+    syscall
+    pop rcx
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ; end print line break
     pop rsi
     pop rbp
     ret
@@ -284,8 +506,8 @@ section .text
     ; loop to check each cell in same row
     push rcx
     mov rcx, boardDimension
-    dec rcx
     loop_check_value_row:
+    dec rcx
     push rbx
     add rbx, rcx
     ; check value only if cell is not cell whose value we are checking
@@ -297,7 +519,6 @@ section .text
     skip_check_value_row:
     ; end check value only if cell is not cell whose value we are checking
     pop rbx
-    dec rcx
     test rcx, rcx
     jne loop_check_value_row
     pop rcx
